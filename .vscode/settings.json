@@ -1,4 +1,5 @@
 {
+	"source_files": "main.c movelist.c",
 	"files.exclude": {
 		"**/.git": true,
 		"**/.svn": true,
@@ -14,6 +15,8 @@
 		"*.tcc": "cpp",
 		"compare": "cpp",
 		"numeric": "cpp",
-		"cmath": "cpp"
+		"cmath": "cpp",
+		"vector2int.h": "c",
+		"raylib.h": "c"
 	}
 }
