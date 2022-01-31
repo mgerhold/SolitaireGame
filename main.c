@@ -19,7 +19,7 @@ static Camera2D camera = { 0 };
 static Vector2 cameraTarget = { .x = 0.0f, .y = 0.0f };
 static const int screenWidth = 800;
 static const int screenHeight = 600;
-static const float boardRadius = screenHeight * 0.45f;
+static const float boardRadius = (float) screenHeight * 0.45f;
 static const float innerFieldHalfWidth = boardRadius * 0.8f;
 static const float fieldMargin = 2.0f * innerFieldHalfWidth / (FIELD_DIMENSION - 1);// distance between fields
 static const float fieldRadius = boardRadius / FIELD_DIMENSION / 2.0f;
@@ -31,14 +31,14 @@ static const Color possibleMoveTargetColor = YELLOW;
 
 static FieldState fields[FIELD_DIMENSION * FIELD_DIMENSION];
 static Vector2Int selectedBall = { -1, -1 };
-static char debugText[128] = "Test";
+static char debugText[128] = "";
 static MoveList possibleMoves;
 
 static bool areCoordsValid(Vector2Int coords);
 static void initFields(void);
 static void updateDrawFrame(void);
-static void setFieldState(size_t x, size_t y, FieldState state);
-static FieldState getFieldState(size_t x, size_t y);
+static void setFieldState(int x, int y, FieldState state);
+static FieldState getFieldState(int x, int y);
 static bool isSelectionActive(void);
 static void handleInput(void);
 static Vector2Int getMiddle(Vector2Int a, Vector2Int b);
@@ -57,7 +57,7 @@ int main() {
 
     camera = (Camera2D){ 0 };
     camera.target = cameraTarget;
-    camera.offset = (Vector2){ screenWidth / 2.0f, screenHeight / 2.0f };
+    camera.offset = (Vector2){ (float) screenWidth / 2.0f, (float) screenHeight / 2.0f };
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
@@ -82,23 +82,23 @@ static void updateDrawFrame(void) {
         BeginMode2D(camera);
         {
             DrawCircle(0, 0, boardRadius, boardColor);
-            for (size_t x = 0; x < FIELD_DIMENSION; ++x) {
-                for (size_t y = 0; y < FIELD_DIMENSION; ++y) {
+            for (int x = 0; x < FIELD_DIMENSION; ++x) {
+                for (int y = 0; y < FIELD_DIMENSION; ++y) {
                     FieldState fieldState = getFieldState(x, y);
                     if (fieldState == FIELDSTATE_BLOCKED) {
                         continue;
                     }
                     Color fieldColor = emptyFieldColor;
-                    if (isSelectionActive() && x == selectedBall.x && y == selectedBall.y) {
+                    if (isSelectionActive() && (int) x == selectedBall.x && (int) y == selectedBall.y) {
                         fieldColor = selectedBallColor;
-                    } else if (isSelectionActive() && canJumpTo(selectedBall, (Vector2Int){ x, y })) {
+                    } else if (isSelectionActive() && canJumpTo(selectedBall, (Vector2Int){ (int) x, (int) y })) {
                         sprintf(debugText, "can jump");
                         fieldColor = possibleMoveTargetColor;
                     } else if (fieldState == FIELDSTATE_OCCUPIED) {
                         fieldColor = ballColor;
                     }
-                    DrawCircle(-innerFieldHalfWidth + x * fieldMargin, -innerFieldHalfWidth + y * fieldMargin,
-                               fieldRadius, fieldColor);
+                    DrawCircle((int) (-innerFieldHalfWidth + (float) x * fieldMargin),
+                               (int) (-innerFieldHalfWidth + (float) y * fieldMargin), fieldRadius, fieldColor);
                 }
             }
         }
@@ -118,8 +118,8 @@ static bool areCoordsValid(Vector2Int coords) {
 }
 
 static void initFields(void) {
-    for (size_t x = 0; x < FIELD_DIMENSION; ++x) {
-        for (size_t y = 0; y < FIELD_DIMENSION; ++y) {
+    for (int x = 0; x < FIELD_DIMENSION; ++x) {
+        for (int y = 0; y < FIELD_DIMENSION; ++y) {
             FieldState state = FIELDSTATE_BLOCKED;
             if (x == FIELD_DIMENSION / 2 && y == FIELD_DIMENSION / 2) {
                 // middle field
@@ -132,11 +132,11 @@ static void initFields(void) {
     }
 }
 
-static void setFieldState(size_t x, size_t y, FieldState state) {
+static void setFieldState(int x, int y, FieldState state) {
     fields[x + y * FIELD_DIMENSION] = state;
 }
 
-static FieldState getFieldState(size_t x, size_t y) {
+static FieldState getFieldState(int x, int y) {
     return fields[x + y * FIELD_DIMENSION];
 }
 
@@ -177,7 +177,8 @@ static Vector2Int getMiddle(Vector2Int a, Vector2Int b) {
 }
 
 static Vector2 ballCoordsToScreenCoords(Vector2Int coords) {
-    return (Vector2){ -innerFieldHalfWidth + coords.x * fieldMargin, -innerFieldHalfWidth + coords.y * fieldMargin };
+    return (Vector2){ -innerFieldHalfWidth + (float) coords.x * fieldMargin,
+                      -innerFieldHalfWidth + (float) coords.y * fieldMargin };
 }
 
 static Vector2Int screenCoordsToBallCoords(Vector2 coords) {
@@ -240,8 +241,8 @@ static void calculatePossibleMoves(void) {
             const Vector2Int currentPosition = { x, y };
             addMoveIfValid(currentPosition, (Vector2Int){ currentPosition.x + 2, currentPosition.y });
             addMoveIfValid(currentPosition, (Vector2Int){ currentPosition.x - 2, currentPosition.y });
-            addMoveIfValid(currentPosition, (Vector2Int){ currentPosition.x, currentPosition.y + 2});
-            addMoveIfValid(currentPosition, (Vector2Int){ currentPosition.x, currentPosition.y - 2});
+            addMoveIfValid(currentPosition, (Vector2Int){ currentPosition.x, currentPosition.y + 2 });
+            addMoveIfValid(currentPosition, (Vector2Int){ currentPosition.x, currentPosition.y - 2 });
         }
     }
     sprintf(debugText, "Possible moves: %zu", moveListSize(&possibleMoves));
