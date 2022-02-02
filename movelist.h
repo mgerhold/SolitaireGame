@@ -3,21 +3,24 @@
 
 #include "vector2int.h"
 #include <stddef.h>
+#include <stdbool.h>
 
 typedef struct {
     Vector2Int from, to;
 } Move;
 
-typedef struct {
-    Move* data;
-    size_t size, capacity;
-} MoveList;
+struct MoveList;
+typedef struct MoveList MoveList;
 
-void moveListCreate(MoveList* list);
+bool moveEquals(Move lhs, Move rhs);
+
+MoveList* moveListCreate();
 void moveListAdd(MoveList* list, Move move);
 void moveListClear(MoveList* list);
-size_t moveListSize(MoveList* list);
-Move* moveListGet(MoveList* list, size_t index);
-void moveListDestroy(MoveList* list);
+size_t moveListSize(const MoveList* list);
+Move moveListGet(const MoveList* list, size_t index);
+void moveListDestroy(MoveList** list);
+bool moveListIsEmpty(MoveList* list);
+bool moveListContains(MoveList* list, Move move);
 
 #endif

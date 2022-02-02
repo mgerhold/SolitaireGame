@@ -1,5 +1,5 @@
 {
-	"source_files": "main.c movelist.c",
+	"source_files": "main.c movelist.c board.c utility.c",
 	"files.exclude": {
 		"**/.git": true,
 		"**/.svn": true,
@@ -17,6 +17,10 @@
 		"numeric": "cpp",
 		"cmath": "cpp",
 		"vector2int.h": "c",
-		"raylib.h": "c"
+		"raylib.h": "c",
+		"game.h": "c",
+		"board.h": "c",
+		"stdbool.h": "c",
+		"utility.h": "c"
 	}
 }
