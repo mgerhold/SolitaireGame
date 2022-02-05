@@ -1,5 +1,6 @@
 {
-	"source_files": "main.c movelist.c board.c utility.c",
+	"source_files": "main.c movelist.c board.c utility.c balllist.c",
+	"files.insertFinalNewline": true,
 	"files.exclude": {
 		"**/.git": true,
 		"**/.svn": true,

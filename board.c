@@ -3,21 +3,24 @@
 #include "defines.h"
 #include <math.h>
 #include <stdlib.h>
+#include <assert.h>
+#include <float.h>
 
 struct Board {
     FieldState* fields;
     Vector2Int selectedBall;
     MoveList* possibleMoves;
+    BallListNode* depositedBalls;
     int fieldDimension;
 };
 
-static void addMoveIfValid(Board* board, Vector2Int from, Vector2Int to) {
+static void addMoveIfValid(Board* const board, const Vector2Int from, const Vector2Int to) {
     if (boardBallCanJump(board, from, to)) {
         moveListAdd(board->possibleMoves, (Move){ from, to });
     }
 }
 
-static void calculatePossibleMoves(Board* board) {
+static void calculatePossibleMoves(Board* const board) {
     moveListClear(board->possibleMoves);
     for (int x = 0; x < board->fieldDimension; ++x) {
         for (int y = 0; y < board->fieldDimension; ++y) {
@@ -33,7 +36,7 @@ static void calculatePossibleMoves(Board* board) {
     }
 }
 
-static void initFields(Board* board) {
+static void initFields(Board* const board) {
     for (int x = 0; x < board->fieldDimension; ++x) {
         for (int y = 0; y < board->fieldDimension; ++y) {
             FieldState state = FIELDSTATE_BLOCKED;
@@ -54,51 +57,56 @@ Board* boardCreate(void) {
     board->selectedBall = (Vector2Int){ -1, -1 };
     board->possibleMoves = moveListCreate();
     board->fieldDimension = BOARD_DIMENSION;
+    board->depositedBalls = NULL;
     initFields(board);
     calculatePossibleMoves(board);
     return board;
 }
 
-bool boardAreCoordsValid(Board* board, Vector2Int coords) {
+bool boardAreCoordsValid(Board const* const board, const Vector2Int coords) {
     return (coords.x >= 0 && coords.y >= 0 && coords.x < board->fieldDimension && coords.y < board->fieldDimension) &&
            ((coords.x > board->fieldDimension / 4 && coords.x < board->fieldDimension * 3 / 4) ||
             (coords.y > board->fieldDimension / 4 && coords.y < board->fieldDimension * 3 / 4));
 }
 
-void boardClearSelection(Board* board) {
+void boardClearSelection(Board* const board) {
     board->selectedBall = (Vector2Int){ -1, -1 };
 }
 
-Vector2Int boardGetSelectedBall(Board* board) {
+Vector2Int boardGetSelectedBall(Board const* const board) {
     return board->selectedBall;
 }
 
-void boardSetSelectedBall(Board* board, Vector2Int selected) {
+void boardSetSelectedBall(Board* const board, const Vector2Int selected) {
     board->selectedBall = selected;
 }
 
-const MoveList* boardGetPossibleMoves(Board* board) {
+const MoveList* boardGetPossibleMoves(Board const* const board) {
     return board->possibleMoves;
 }
 
-void boardSetFieldState(Board* board, int x, int y, FieldState state) {
+void boardSetFieldState(Board* const board, const int x, const int y, const FieldState state) {
     board->fields[x + y * board->fieldDimension] = state;
     calculatePossibleMoves(board);
 }
 
-FieldState boardGetFieldState(Board* board, int x, int y) {
+FieldState boardGetFieldState(Board const* const board, const int x, const int y) {
     return board->fields[x + y * board->fieldDimension];
 }
 
-bool boardContainsPossibleMove(Board* board, Move move) {
+bool boardContainsPossibleMove(Board const* const board, const Move move) {
     return moveListContains(board->possibleMoves, move);
 }
 
-bool boardIsSelectionActive(Board* board) {
+bool boardHasPossibleMoves(Board const* const board) {
+    return !moveListIsEmpty(board->possibleMoves);
+}
+
+bool boardIsSelectionActive(Board const* const board) {
     return board->selectedBall.x >= 0 && board->selectedBall.y >= 0;
 }
 
-bool boardBallCanJump(Board* board, Vector2Int from, Vector2Int to) {
+bool boardBallCanJump(Board const* const board, const Vector2Int from, const Vector2Int to) {
     if (!boardAreCoordsValid(board, from) || !boardAreCoordsValid(board, to)) {
         return false;
     }
@@ -120,7 +128,50 @@ bool boardBallCanJump(Board* board, Vector2Int from, Vector2Int to) {
     return true;
 }
 
+int boardGetNumberOfBalls(const Board* board) {
+    int sum = 0;
+    for (int x = 0; x < BOARD_DIMENSION; ++x) {
+        for (int y = 0; y < BOARD_DIMENSION; ++y) {
+            if (boardGetFieldState(board, x, y) == FIELDSTATE_OCCUPIED) {
+                sum++;
+            }
+        }
+    }
+    return sum;
+}
+
+void boardDoJump(Board* const board, const Vector2Int from, const Vector2Int to) {
+    assert(boardBallCanJump(board, from, to));
+    const Vector2Int inBetweenPosition = getMiddle(from, to);
+    boardSetFieldState(board, from.x, from.y, FIELDSTATE_FREE);
+    boardSetFieldState(board, inBetweenPosition.x, inBetweenPosition.y, FIELDSTATE_FREE);
+    boardSetFieldState(board, to.x, to.y, FIELDSTATE_OCCUPIED);
+
+    // put ball into outer ring
+    Vector2 position;
+    float minDistance = FLT_MAX;
+    do {
+        position = randomPointOnCircle(OUTER_RING_RADIUS);
+        BallListNode* current = board->depositedBalls;
+        minDistance = FLT_MAX;
+        while (current != NULL) {
+            const float distance = vectorDistance(position, current->position);
+            if (distance < minDistance) {
+                minDistance = distance;
+            }
+            current = current->next;
+        }
+    } while (minDistance != FLT_MAX &&
+             (minDistance < OUTER_RING_BALL_MIN_DISTANCE || minDistance > OUTER_RING_BALL_MAX_DISTANCE));
+    ballListNodeAdd(&board->depositedBalls, position);
+}
+
+BallListNode* boardGetDepositedBalls(Board const* const board) {
+    return board->depositedBalls;
+}
+
 void boardDestroy(Board** board) {
+    ballListDestroy(&(*board)->depositedBalls);
     moveListDestroy(&(*board)->possibleMoves);
     free((*board)->fields);
     free(*board);

@@ -198,7 +198,7 @@ CFLAGS += -Wall -Wextra -pedantic -Wconversion -std=c99 -D_DEFAULT_SOURCE -Wno-m
 ifeq ($(BUILD_MODE),DEBUG)
     CFLAGS += -g -O0
 else
-    CFLAGS += -s -O1
+     CFLAGS += -s -O3
 endif
 
 # Additional flags for compiler (if desired)

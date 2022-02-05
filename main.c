@@ -4,18 +4,20 @@
 #include "board.h"
 #include "utility.h"
 #include "defines.h"
+#include "balllist.h"
+#include "debugtext.h"
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <time.h>
 
-static char debugText[128] = "";
+char debugText[128] = "";
 
 static void updateDrawFrame(void);
 static void handleInput(void);
-static Vector2 ballCoordsToScreenCoords(Vector2Int coords);
-static Vector2Int screenCoordsToBallCoords(Vector2 coords);
 
 static Board* board;
 static Camera2D camera = { .offset = { (float) SCREEN_WIDTH / 2.0f, (float) SCREEN_HEIGHT / 2.0f },
@@ -23,12 +25,13 @@ static Camera2D camera = { .offset = { (float) SCREEN_WIDTH / 2.0f, (float) SCRE
                            .rotation = 0.0f,
                            .zoom = 1.0f };
 
-int main() {
+int main() {    
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Solitaire");
     board = boardCreate();
 
     SetTargetFPS(200);
 
+    srand((unsigned int)time(NULL) % 100);
     while (!WindowShouldClose()) {
         handleInput();
         updateDrawFrame();
@@ -47,7 +50,7 @@ static void updateDrawFrame(void) {
 
         BeginMode2D(camera);
         {
-            DrawCircle(0, 0, BOARD_RADIUS, BOARD_COLOR);
+            DrawCircle(0, 0, BOARD_RADIUS, BOARD_COLOR); // board
             for (int x = 0; x < BOARD_DIMENSION; ++x) {
                 for (int y = 0; y < BOARD_DIMENSION; ++y) {
                     FieldState fieldState = boardGetFieldState(board, x, y);
@@ -58,10 +61,9 @@ static void updateDrawFrame(void) {
                     const Vector2Int selectedBall = boardGetSelectedBall(board);
                     if (boardIsSelectionActive(board) && x == selectedBall.x && y == selectedBall.y) {
                         fieldColor = SELECTED_BALL_COLOR;
-                    } else if (boardIsSelectionActive(board) &&
+                    } else if (fieldState == FIELDSTATE_FREE && boardIsSelectionActive(board) &&
                                boardContainsPossibleMove(board,
                                                          (Move){ .from = selectedBall, .to = (Vector2Int){ x, y } })) {
-                        sprintf(debugText, "can jump");
                         fieldColor = POSSIBLE_MOVE_TARGET_COLOR;
                     } else if (fieldState == FIELDSTATE_OCCUPIED) {
                         fieldColor = BALL_COLOR;
@@ -70,11 +72,17 @@ static void updateDrawFrame(void) {
                                (int) (-INNER_FIELD_HALF_WIDTH + (float) y * FIELD_MARGIN), FIELD_RADIUS, fieldColor);
                 }
             }
+
+            const BallListNode* currentBall = boardGetDepositedBalls(board);
+            while (currentBall != NULL) {
+                DrawCircle((int)currentBall->position.x, (int)currentBall->position.y, FIELD_RADIUS, BALL_COLOR);
+                currentBall = currentBall->next;
+            }
         }
 
         EndMode2D();
 
-        DrawText(debugText, 10, 50, 30, WHITE);
+        DrawText(debugText, 10, 50, 30, RED);
         DrawFPS(10, 10);
     }
     EndDrawing();
@@ -83,7 +91,7 @@ static void updateDrawFrame(void) {
 static void handleInput(void) {
     const Vector2 mousePosition = GetScreenToWorld2D(GetMousePosition(), camera);
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        const Vector2Int ballCoords = screenCoordsToBallCoords(mousePosition);
+        const Vector2Int ballCoords = screenCoordsToBallCoords(board, mousePosition);
         if (!boardAreCoordsValid(board, ballCoords) ||
             boardGetFieldState(board, ballCoords.x, ballCoords.y) != FIELDSTATE_OCCUPIED) {
             boardClearSelection(board);
@@ -91,7 +99,7 @@ static void handleInput(void) {
         }
         boardSetSelectedBall(board, ballCoords);
     } else if (boardIsSelectionActive(board) && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-        const Vector2Int targetCoords = screenCoordsToBallCoords(mousePosition);
+        const Vector2Int targetCoords = screenCoordsToBallCoords(board, mousePosition);
         if (!boardAreCoordsValid(board, targetCoords)) {
             return;
         }
@@ -103,9 +111,7 @@ static void handleInput(void) {
         assert(boardGetFieldState(board, selectedBall.x, selectedBall.y) == FIELDSTATE_OCCUPIED);
         assert(boardGetFieldState(board, inBetweenPosition.x, inBetweenPosition.y) == FIELDSTATE_OCCUPIED);
         assert(boardGetFieldState(board, targetCoords.x, targetCoords.y) == FIELDSTATE_FREE);
-        boardSetFieldState(board, selectedBall.x, selectedBall.y, FIELDSTATE_FREE);
-        boardSetFieldState(board, inBetweenPosition.x, inBetweenPosition.y, FIELDSTATE_FREE);
-        boardSetFieldState(board, targetCoords.x, targetCoords.y, FIELDSTATE_OCCUPIED);
+        boardDoJump(board, selectedBall, targetCoords);
         boardClearSelection(board);
         // set selection to moved ball if there's another move possible from the new position
         bool anotherMoveIsPossible = false;
@@ -121,27 +127,9 @@ static void handleInput(void) {
         if (anotherMoveIsPossible) {
             boardSetSelectedBall(board, targetCoords);
         }
-    }
-}
 
-static Vector2 ballCoordsToScreenCoords(Vector2Int coords) {
-    return (Vector2){ -INNER_FIELD_HALF_WIDTH + (float) coords.x * FIELD_MARGIN,
-                      -INNER_FIELD_HALF_WIDTH + (float) coords.y * FIELD_MARGIN };
-}
-
-static Vector2Int screenCoordsToBallCoords(Vector2 coords) {
-    for (int x = 0; x < BOARD_DIMENSION; ++x) {
-        for (int y = 0; y < BOARD_DIMENSION; ++y) {
-            if (!boardAreCoordsValid(board, (Vector2Int){ x, y })) {
-                continue;
-            }
-            Vector2 ballPosition = ballCoordsToScreenCoords((Vector2Int){ x, y });
-            const float squaredDistance = (coords.x - ballPosition.x) * (coords.x - ballPosition.x) +
-                                          (coords.y - ballPosition.y) * (coords.y - ballPosition.y);
-            if (squaredDistance <= FIELD_RADIUS * FIELD_RADIUS) {
-                return (Vector2Int){ x, y };
-            }
+        if (!boardHasPossibleMoves(board)) {
+            sprintf(debugText, "Game Over! Score: %d", SCORE_CAP - boardGetNumberOfBalls(board));
         }
     }
-    return (Vector2Int){ -1, -1 };
 }
